@@ -17,6 +17,8 @@ export const MAAS_CHANNEL_NAME = "MaaS 算力网关";
 export const MAAS_PROVIDER_CHAT = "chat-completion";
 export const MAAS_PROVIDER_IMAGE = "maas-image";
 export const MAAS_PROVIDER_VIDEO = "maas-video";
+// 参考族玩法固定 reference，必须用独立接口类型（模板 DSL 不支持按模型名分支）。
+export const MAAS_PROVIDER_VIDEO_REF = "maas-video-ref";
 
 export type MaasCapability = "text" | "image" | "video" | "audio";
 
@@ -45,7 +47,7 @@ export type MaasCatalogMapping = {
 const ACCEPTED_INTERFACE_TYPES: Record<"text" | "image" | "video", string[]> = {
     text: [MAAS_PROVIDER_CHAT],
     image: [MAAS_PROVIDER_IMAGE],
-    video: [MAAS_PROVIDER_VIDEO],
+    video: [MAAS_PROVIDER_VIDEO, MAAS_PROVIDER_VIDEO_REF],
 };
 
 function resolveInterfaceType(
@@ -78,6 +80,10 @@ function modalitiesOf(item: ModelCatalogItem): string[] {
     return modalities;
 }
 
+function defaultVideoProtocol(model: string): string {
+    return model.includes("-ref") ? MAAS_PROVIDER_VIDEO_REF : MAAS_PROVIDER_VIDEO;
+}
+
 function mediaProfiles(
     items: ModelCatalogItem[] | undefined,
     capability: "image" | "video",
@@ -94,7 +100,8 @@ function mediaProfiles(
             displayName: displayNameOf(item, model),
             ...(description ? { description } : {}),
             capability,
-            protocol: resolveInterfaceType(item, capability, protocol, warnings),
+            protocol: resolveInterfaceType(item, capability, protocol || defaultVideoProtocol(model), warnings),
+            ...(capability === "video" && model.includes("-ref") ? { protocol: MAAS_PROVIDER_VIDEO_REF } : {}),
             authType: "bearer",
             ...(item.params ? { params: item.params } : {}),
         });
@@ -126,7 +133,7 @@ export function maasProfilesFromCatalog(payload: ModelCatalogPayload | undefined
         });
     }
     profiles.push(...mediaProfiles(payload?.image, "image", MAAS_PROVIDER_IMAGE, warnings));
-    profiles.push(...mediaProfiles(payload?.video, "video", MAAS_PROVIDER_VIDEO, warnings));
+    profiles.push(...mediaProfiles(payload?.video, "video", "", warnings));
 
     const defaults: MaasCatalogDefaults = {};
     const chat = typeof payload?.defaults?.chat === "string" ? payload.defaults.chat.trim() : "";

@@ -59,6 +59,13 @@
             "mapping": "prompt"
           },
           {
+            "name": "images",
+            "type": "media[]",
+            "required": false,
+            "mapping": "image（→ /v1/images/edits）",
+            "description": "参考图/底图；有图时走图生图。"
+          },
+          {
             "name": "aspectRatio",
             "type": "string",
             "required": false,
@@ -156,7 +163,65 @@
                 }
               }
             }
-          }
+          },
+          "pathTemplate": {
+            "$if": {
+              "condition": {
+                "$gt": [
+                  {
+                    "$len": {
+                      "$ref": "request.images"
+                    }
+                  },
+                  0
+                ]
+              },
+              "then": "/v1/images/edits",
+              "else": "/v1/images/generations"
+            }
+          },
+          "contentTypeTemplate": {
+            "$if": {
+              "condition": {
+                "$gt": [
+                  {
+                    "$len": {
+                      "$ref": "request.images"
+                    }
+                  },
+                  0
+                ]
+              },
+              "then": "multipart/form-data",
+              "else": "application/json"
+            }
+          },
+          "files": [
+            {
+              "name": "image",
+              "source": {
+                "$first": {
+                  "$filter": {
+                    "from": {
+                      "$sortByOrder": {
+                        "$ref": "request.images"
+                      }
+                    },
+                    "as": "media",
+                    "where": {
+                      "$ne": [
+                        {
+                          "$ref": "media.role"
+                        },
+                        "mask"
+                      ]
+                    }
+                  }
+                }
+              },
+              "filename": "image.png"
+            }
+          ]
         },
         "response": {
           "status": "succeeded",
