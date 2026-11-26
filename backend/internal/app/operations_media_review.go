@@ -17,7 +17,7 @@ func (s *operationSession) ReviewMedia(ctx context.Context, part operations.Medi
 	if err != nil {
 		return empty, err
 	}
-	provider, reason := modelcatalog.ResolveMediaReviewProvider(snapshot, s.service.assistantManagedCredentialLookup())
+	provider, reason := modelcatalog.ResolveMediaReviewProviderForMimeType(snapshot, s.service.assistantManagedCredentialLookup(), part.MimeType)
 	if reason != "" {
 		return empty, operations.Unsupported("media_review_unavailable", "请在设置的默认模型中选择可用的多模态模型")
 	}

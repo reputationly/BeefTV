@@ -632,6 +632,7 @@ func TestBundledPluginDirsManifestAndDesktopAgentHostResolution(t *testing.T) {
 		"beeftv-plugin-market": false,
 		"beeftv-plugin-ll2":    false,
 		"beeftv-plugin-ysdui":  false,
+		"beeftv-plugin-maas":    false,
 	}
 	for _, name := range names {
 		if _, ok := wantNames[name]; !ok {

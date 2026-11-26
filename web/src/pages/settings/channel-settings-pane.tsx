@@ -14,6 +14,7 @@ import { channelHasGenerationCredential, channelHasManagedBeefTVCredential, crea
 import { ChannelModelSettings } from "./channel-model-settings";
 import { ModelServiceEditor } from "./model-service-editor";
 import { ChannelRequestAddressLines } from "./channel-request-addresses";
+import { MaasCatalogStatus } from "./maas-catalog-status";
 import { currentModelConnectionReceipt, useModelConnectionTests } from "@/stores/use-model-connection-tests";
 import { ModelLogo } from "@/components/model-logo";
 import beefTVAppIcon from "../../../../assets/app-icon.png";
@@ -293,6 +294,8 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels }: Channel
                         const builtinBeefTV = isBuiltinBeefTVChannel(channel);
                         const topazUpscale = isTopazUpscaleChannel(channel);
                         const pluginChannel = Boolean(channel.interfaceType && pluginServiceIds.has(channel.interfaceType));
+                        // MaaS 渠道的模型来自网关能力清单（自建模型），不走 /v1/models 目录，避免把未自建模型拉进来。
+                        const maasChannel = channel.id === "maas" || String(channel.baseUrl || "").includes("maas.ovaijisuan.com");
                         return (
                             <section key={channel.id} data-onboarding={builtinBeefTV ? "official-channel" : undefined} aria-labelledby={`channel-${channel.id}-title`} className="settings-channel p-2.5 sm:p-3">
                                 <div className="mb-2.5 flex flex-wrap items-start justify-between gap-2.5">
@@ -305,30 +308,21 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels }: Channel
                                             {builtinBeefTV ? (
                                                 <>
                                                     <span>已保存 {channel.models.length} 个模型</span>
-                                                    <span>BeefTV 官方算力渠道，一键连接、开箱即用</span>
+                                                    <span>BeefTV 官方算力渠道（本地版不再通过账号连接，模型请用下方渠道或 MaaS 插件配置）</span>
                                                 </>
                                             ) : (
-                                                <span>{pluginChannel ? "插件提供" : channelProtocolLabel(channel)} · 已保存 {channel.models.length} 个模型</span>
+                                                <span>{maasChannel ? "网关能力清单同步" : pluginChannel ? "插件提供" : channelProtocolLabel(channel)} · 已保存 {channel.models.length} 个模型</span>
                                             )}
+                                            {maasChannel ? <MaasCatalogStatus /> : null}
                                             <ChannelStatus channel={channel} persistence={persistence} connection={builtinBeefTV ? beefConnection : null} />
                                         </div>
                                         {topazUpscale ? <p className="mt-1 text-xs text-foreground/55">从图片或视频节点上方的「AI超分」使用</p> : null}
-                                        {!builtinBeefTV && !topazUpscale && !pluginChannel && <ChannelRequestAddressLines channel={channel} />}
+                                        {!builtinBeefTV && !topazUpscale && !pluginChannel && !maasChannel && <ChannelRequestAddressLines channel={channel} />}
                                     </div>
                                     <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto sm:shrink-0">
                                         {builtinBeefTV && catalogSyncFailed ? <Button loading={beefBusy} onClick={() => void retryCatalog()}>重试更新模型列表</Button> : null}
-                                        {builtinBeefTV ? (
-                                            <BeefTVConnectionActions
-                                                connection={beefConnection}
-                                                busy={beefBusy}
-                                                onConnect={() => void connect()}
-                                                onCancel={() => void cancel()}
-                                                onRetry={() => void connect()}
-                                                onDisconnect={() => void disconnect()}
-                                                onWallet={() => void openAccount()}
-                                            />
-                                        ) : null}
-                                        {!topazUpscale ? (
+                                        {/* 本地版不再提供 BeefTV 账号登录/钱包入口；官方渠道只保留模型管理。 */}
+                                        {!topazUpscale && !maasChannel ? (
                                         <Button
                                             className="h-10 sm:h-8"
                                             size="small"
@@ -426,9 +420,8 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels }: Channel
                                                         />
                                                     </Form.Item>
                                                     {builtinBeefTV ? (
-                                                        <Form.Item label="账号连接" className="mb-0 sm:col-span-2">
-                                                            <p className="m-0 text-sm leading-6 text-foreground/80">{beefTVConnectionLabel(beefConnection)}</p>
-                                                            {beefConnection?.balance === "zero" ? <p className="mt-1 text-xs leading-5 text-foreground/55">余额为 0 时仍可查看模型。生成时会提示余额不足。</p> : null}
+                                                        <Form.Item label="连接状态" className="mb-0 sm:col-span-2">
+                                                            <p className="m-0 text-sm leading-6 text-foreground/80">本地版不再使用 BeefTV 账号登录；模型由本机保存的渠道提供。</p>
                                                         </Form.Item>
                                                     ) : (
                                                         <>

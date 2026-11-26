@@ -77,3 +77,55 @@ func TestDesktopCORSAllowsPrivateNetworkPreflightAndBlocksUntrustedWebOrigins(t 
 		t.Fatalf("untrusted origin reflected in CORS header: %q", untrustedRes.Header().Get("Access-Control-Allow-Origin"))
 	}
 }
+
+// 桌面 WebView 在本机开发形态下的页面来源是 wails://wails.localhost:<port>，
+// 正式壳是 wails://wails。两者都必须拿到 CORS 许可，否则前端直连回环端口失败，
+// 只能退回窗口内同源通道并关闭任务文本实时流。
+func TestDesktopOriginAllowlistCoversWailsShellHosts(t *testing.T) {
+	allowed := []string{
+		"wails://wails",
+		"wails://wails.localhost",
+		"wails://wails.localhost:34115",
+		"http://wails.localhost:34115",
+		"http://127.0.0.1:8080",
+		"http://localhost:3000",
+	}
+	for _, origin := range allowed {
+		if !IsAllowedDesktopOrigin(origin) {
+			t.Errorf("origin %q must be trusted as a desktop shell origin", origin)
+		}
+	}
+	rejected := []string{
+		"wails://evil.localhost:34115",
+		"wails://wails.localhost.evil.example",
+		"https://malicious.example.com",
+		"http://192.168.1.5:8080",
+		"wails://user@wails.localhost:34115",
+		"wails://wails.localhost:34115/path",
+		"",
+	}
+	for _, origin := range rejected {
+		if IsAllowedDesktopOrigin(origin) {
+			t.Errorf("origin %q must not be trusted", origin)
+		}
+	}
+}
+
+func TestDesktopCORSReflectsDevelopmentShellOrigin(t *testing.T) {
+	router := gin.New()
+	router.Use(desktopCORSMiddleware())
+	router.GET("/api/health/live", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	const origin = "wails://wails.localhost:34115"
+	request := httptest.NewRequest(http.MethodGet, "/api/health/live", nil)
+	request.Header.Set("Origin", origin)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.Code)
+	}
+	if got := response.Header().Get("Access-Control-Allow-Origin"); got != origin {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, origin)
+	}
+}

@@ -34,6 +34,9 @@ type AssistantModelProfile struct {
 	Model         string `json:"model"`
 	Capability    string `json:"capability"`
 	Protocol      string `json:"protocol"`
+	// Modalities 该模型声明的输入模态（image/video/audio），来自网关能力目录。
+	// 为空表示"没有声明"，按兼容处理，不据此拒绝。
+	Modalities    []string `json:"modalities,omitempty"`
 	ContextWindow int    `json:"contextWindow,omitempty"`
 	MaxTokens     int    `json:"maxTokens,omitempty"`
 }

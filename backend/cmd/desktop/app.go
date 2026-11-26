@@ -426,8 +426,14 @@ func writeUntrustedDesktopOrigin(w http.ResponseWriter) {
 }
 
 func isTrustedDesktopAssetAPIRequest(r *http.Request) bool {
+	// 模块子资源（`import("/api/plugins/.../index.js")`）在 wails:// 页面里带的
+	// Sec-Fetch-Site 是 `none`/`same-site`，不是 `same-origin`。只放行 same-origin
+	// 会让所有 ESM 客户端插件加载失败（浏览器报 "Importing a module script failed"），
+	// 而这类请求仍然只能由应用自己的 WebView 发出（自定义 scheme 不对外注册）。
 	secFetch := strings.ToLower(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site")))
-	if secFetch != "" && secFetch != "same-origin" {
+	switch secFetch {
+	case "", "same-origin", "same-site", "none":
+	default:
 		return false
 	}
 	origin := strings.TrimSpace(r.Header.Get("Origin"))

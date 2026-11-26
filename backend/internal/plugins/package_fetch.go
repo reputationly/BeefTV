@@ -688,6 +688,7 @@ var BundledBuiltinPluginNames = []string{
 	"beeftv-plugin-market",
 	"beeftv-plugin-ll2",
 	"beeftv-plugin-ysdui",
+	"beeftv-plugin-maas",
 }
 
 var (

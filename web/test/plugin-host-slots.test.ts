@@ -502,12 +502,14 @@ describe("plugin host slots, events, and lifecycle", () => {
         const ll2Mod = await import("../../plugin-packages/beeftv-plugin-ll2/client/index.js");
         const ysduiMod = await import("../../plugin-packages/beeftv-plugin-ysdui/client/index.js");
         const slotTestMod = await import("../../plugin-packages/beeftv-plugin-slot-test/client/index.js");
+        const maasMod = await import("../../plugin-packages/beeftv-plugin-maas/client/index.js");
 
         const packages = [
             { id: "beeftv-plugin-market", name: "插件市场", mod: marketMod },
             { id: "beeftv-plugin-ll2", name: "LL2 算力与视频渠道", mod: ll2Mod },
             { id: "beeftv-plugin-ysdui", name: "银盛云枢壹算算力与多模态渠道", mod: ysduiMod },
             { id: "beeftv-plugin-slot-test", name: "挂点测试套件", mod: slotTestMod },
+            { id: "beeftv-plugin-maas", name: "MaaS 算力网关", mod: maasMod },
         ];
 
         for (const pkg of packages) {
@@ -562,6 +564,25 @@ describe("plugin host slots, events, and lifecycle", () => {
         expect(builtYsduiChannel.modelProfiles).toHaveLength(4);
         const defaultYsduiChannel = ysduiMod.buildYsduiModelChannel({ apiKey: "sk-test-demo", baseUrl: "https://tokenhub.ysdui.cn" });
         expect(defaultYsduiChannel.modelProfiles).toHaveLength(32);
+
+        // MaaS plugin contributes app.settings and builds a channel with the fixed gateway URL
+        expect(
+            getPluginSlotEntries("app.settings").some((e) => e.pluginId === "beeftv-plugin-maas"),
+        ).toBe(true);
+        const maasMapping = maasMod.maasProfilesFromCatalog({
+            text: [{ platformModel: "GLM-5" }],
+            image: [{ platformModel: "minimax-h3-image" }],
+            video: [{ platformModel: "minimax-h3-2k" }],
+            audio: [{ platformModel: "ace-step" }],
+            defaults: { chat: "GLM-5" },
+        });
+        const maasProfiles = maasMapping.profiles;
+        const builtMaasChannel = maasMod.buildMaasModelChannel({ apiKey: "sk-test-demo", baseUrl: "https://maas.ovaijisuan.com/v1", profiles: maasProfiles });
+        expect(builtMaasChannel.id).toBe("maas");
+        expect(builtMaasChannel.baseUrl).toBe("https://maas.ovaijisuan.com/v1");
+        expect(builtMaasChannel.models).toEqual(["GLM-5", "minimax-h3-image", "minimax-h3-2k"]);
+        expect(maasMapping.defaults.chat).toBe("GLM-5");
+        expect(builtMaasChannel.modelProfiles.map((row) => row.protocol)).toEqual(["chat-completion", "maas-image", "maas-video"]);
 
         // Untrusted plugins without settings.write cannot read or mutate channels
         const untrustedHost = createBeefTVPluginHost("untrusted-plugin", {

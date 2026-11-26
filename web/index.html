@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" class="dark font-sans" style="color-scheme: dark">
+<html lang="zh-CN" class="font-sans">
     <head>
         <meta charset="UTF-8" />
         <base href="/" />
@@ -48,10 +48,14 @@
             }
         </style>
         <script>
-            // Match the saved preference before the first paint; invalid storage stays dark.
-            let theme = "dark";
+            // Match the saved preference before the first paint; without a saved
+            // preference the workspace starts light (matches useThemeStore defaults).
+            let theme = "light";
             try {
-                if (JSON.parse(localStorage.getItem("infinite-canvas:theme_store"))?.state?.theme === "light") theme = "light";
+                const saved = JSON.parse(localStorage.getItem("infinite-canvas:theme_store"))?.state;
+                const preference = saved?.preference ?? saved?.theme;
+                if (preference === "dark") theme = "dark";
+                else if (preference === "system") theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
             } catch {}
             document.documentElement.classList.toggle("dark", theme === "dark");
             document.documentElement.style.colorScheme = theme;

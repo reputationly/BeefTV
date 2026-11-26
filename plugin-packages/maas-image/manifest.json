@@ -1,0 +1,204 @@
+{
+  "apiVersion": "beeftv.plugin/v2",
+  "id": "maas-image",
+  "name": "MaaS 图像",
+  "version": "1.0.0",
+  "author": "BeefTV",
+  "description": "MaaS（new-api）图像生成：aspect_ratio + resolution 原生参数，POST /v1/images/generations。",
+  "documentation": "# MaaS 图像接口字段\n\n- Provider ID：`maas-image`；能力：`image`；同步响应。\n- 创建：`POST /v1/images/generations`（JSON）。\n\n| 统一字段 | 上游字段 |\n| --- | --- |\n| `model` | `model` |\n| `prompt` | `prompt` |\n| `aspectRatio` | `aspect_ratio`（如 `16:9`） |\n| `resolution` | `resolution`（`1K` / `2K`） |\n| `imageCount` | `n` |\n\n响应：`{ \"data\": [{ \"url\": \"…\" }] }`。\n\n注意：MaaS 只接受 `aspect_ratio` + `resolution`，**不要**发 OpenAI 的 `size`（会被按尺寸阶梯拒绝）。\n",
+  "permissions": [],
+  "configuration": {
+    "fields": [
+      {
+        "name": "apiKey",
+        "type": "secret",
+        "required": true,
+        "label": "API Key"
+      },
+      {
+        "name": "baseUrl",
+        "type": "string",
+        "required": false,
+        "label": "Base URL",
+        "default": "https://maas.ovaijisuan.com"
+      }
+    ]
+  },
+  "contributes": {
+    "providers": [
+      {
+        "id": "maas-image",
+        "label": "MaaS 图像",
+        "capabilities": [
+          "image"
+        ],
+        "scopes": [
+          "admin.system-channel",
+          "user.custom-channel",
+          "canvas",
+          "creation",
+          "agent"
+        ],
+        "baseUrl": "https://maas.ovaijisuan.com",
+        "requiresPublicMediaUrls": false,
+        "auth": {
+          "type": "bearer",
+          "field": "apiKey"
+        },
+        "parameters": [
+          {
+            "name": "model",
+            "type": "string",
+            "required": true,
+            "mapping": "model"
+          },
+          {
+            "name": "prompt",
+            "type": "string",
+            "required": true,
+            "mapping": "prompt"
+          },
+          {
+            "name": "aspectRatio",
+            "type": "string",
+            "required": false,
+            "mapping": "aspect_ratio"
+          },
+          {
+            "name": "resolution",
+            "type": "string",
+            "required": false,
+            "mapping": "resolution"
+          },
+          {
+            "name": "imageCount",
+            "type": "integer",
+            "required": false,
+            "mapping": "n"
+          }
+        ],
+        "create": {
+          "method": "POST",
+          "path": "/v1/images/generations",
+          "contentType": "application/json",
+          "body": {
+            "model": {
+              "$ref": "request.model"
+            },
+            "prompt": {
+              "$ref": "request.prompt"
+            },
+            "aspect_ratio": {
+              "$omitEmpty": {
+                "$if": {
+                  "condition": {
+                    "$in": [
+                      {
+                        "$lower": {
+                          "$trim": {
+                            "$ref": "request.aspectRatio"
+                          }
+                        }
+                      },
+                      [
+                        "",
+                        "auto"
+                      ]
+                    ]
+                  },
+                  "then": null,
+                  "else": {
+                    "$ref": "request.aspectRatio"
+                  }
+                }
+              }
+            },
+            "resolution": {
+              "$omitEmpty": {
+                "$if": {
+                  "condition": {
+                    "$in": [
+                      {
+                        "$lower": {
+                          "$trim": {
+                            "$ref": "request.resolution"
+                          }
+                        }
+                      },
+                      [
+                        "",
+                        "auto"
+                      ]
+                    ]
+                  },
+                  "then": null,
+                  "else": {
+                    "$ref": "request.resolution"
+                  }
+                }
+              }
+            },
+            "n": {
+              "$omitEmpty": {
+                "$if": {
+                  "condition": {
+                    "$gt": [
+                      {
+                        "$ref": "request.imageCount"
+                      },
+                      0
+                    ]
+                  },
+                  "then": {
+                    "$ref": "request.imageCount"
+                  },
+                  "else": 1
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "status": "succeeded",
+          "images": {
+            "$map": {
+              "from": {
+                "$ref": "response.data"
+              },
+              "as": "item",
+              "in": {
+                "url": {
+                  "$omitEmpty": {
+                    "$ref": "item.url"
+                  }
+                },
+                "dataUrl": {
+                  "$if": {
+                    "condition": {
+                      "$ref": "item.b64_json"
+                    },
+                    "then": {
+                      "$concat": [
+                        "data:image/png;base64,",
+                        {
+                          "$ref": "item.b64_json"
+                        }
+                      ]
+                    },
+                    "else": null
+                  }
+                }
+              }
+            }
+          },
+          "errorPaths": [
+            "error.code"
+          ],
+          "messagePaths": [
+            "error.message"
+          ]
+        }
+      }
+    ]
+  }
+}

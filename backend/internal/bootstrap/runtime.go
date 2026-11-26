@@ -649,9 +649,6 @@ func IsAllowedDesktopOrigin(origin string) bool {
 	if origin == "" {
 		return false
 	}
-	if origin == "wails://wails" {
-		return true
-	}
 	for _, extra := range strings.Split(os.Getenv("BEEFTV_ALLOWED_ORIGINS"), ",") {
 		if trimmed := strings.TrimSpace(extra); trimmed != "" && strings.EqualFold(trimmed, origin) {
 			return true
@@ -663,7 +660,13 @@ func IsAllowedDesktopOrigin(origin string) bool {
 	}
 	switch strings.ToLower(parsed.Scheme) {
 	case "wails":
-		return strings.EqualFold(parsed.Hostname(), "wails")
+		// Wails 的页面来源随形态变化：正式壳是 wails://wails，开发壳把资源服务挂成
+		// wails://wails.localhost:<asset-server-port>。端口不参与归属判断，否则 WebView
+		// 直连本机回环端口会被 CORS 拒绝，前端只能退回窗口内同源通道并关闭实时流。
+		switch strings.ToLower(parsed.Hostname()) {
+		case "wails", "wails.localhost":
+			return true
+		}
 	case "http", "https":
 		switch strings.ToLower(parsed.Hostname()) {
 		case "wails.localhost", "127.0.0.1", "localhost", "::1":

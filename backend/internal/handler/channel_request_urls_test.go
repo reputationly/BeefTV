@@ -24,6 +24,7 @@ func (requestURLCatalogs) LocalWorkspaceOwner() (*model.User, error) {
 	return &model.User{ID: "owner"}, nil
 }
 func (requestURLCatalogs) RequireFeature(string) error { return nil }
+func (requestURLCatalogs) DataDir() string              { return "" }
 func (requestURLCatalogs) FetchChannelModelCatalog(context.Context, *model.User, app.ChannelModelsRequest) ([]modelcatalog.ChannelModelCatalogItem, error) {
 	return nil, nil
 }

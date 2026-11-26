@@ -16,6 +16,7 @@ import { applyAppearanceMetadata, useAppearanceStore } from "@/stores/use-appear
 import { useUserStore } from "@/stores/use-user-store";
 import { watchSystemTheme } from "@/stores/use-theme-store";
 import { BeefTVConnectionProvider } from "@/components/layout/beeftv-connection-provider";
+import { MaasKeyGate } from "@/components/layout/maas-key-gate";
 
 const ClientRootInit = lazy(() => import("@/components/layout/client-root-init").then((module) => ({ default: module.ClientRootInit })));
 
@@ -51,7 +52,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
                         children
                     ) : (
                         <WorkspaceBootstrapHydrator>
-                            <ClientRootBoundary><BeefTVConnectionProvider>{children}</BeefTVConnectionProvider></ClientRootBoundary>
+                            <MaasKeyGate><ClientRootBoundary><BeefTVConnectionProvider>{children}</BeefTVConnectionProvider></ClientRootBoundary></MaasKeyGate>
                         </WorkspaceBootstrapHydrator>
                     )}
                 </QueryClientProvider>

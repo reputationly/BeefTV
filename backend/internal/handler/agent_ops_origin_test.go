@@ -42,7 +42,7 @@ func TestIsLoopbackRequestOriginRules(t *testing.T) {
 }
 
 func TestWailsOriginRequiresAuthenticatedDesktopTransport(t *testing.T) {
-	for _, origin := range []string{"wails://wails", "http://wails.localhost", "https://wails.localhost", "wails://attacker", "https://evil.example"} {
+	for _, origin := range []string{"wails://wails", "http://wails.localhost", "https://wails.localhost", "wails://wails.localhost:34115", "wails://attacker", "https://evil.example", "https://wails.localhost.evil.example"} {
 		for _, token := range []string{"", "wrong", "test-desktop-token"} {
 			req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:54321/api/assistant/ui-session", nil)
 			req.RemoteAddr = "127.0.0.1:12345"
@@ -55,10 +55,48 @@ func TestWailsOriginRequiresAuthenticatedDesktopTransport(t *testing.T) {
 			httptransport.RequireLaunchToken("test-desktop-token")(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				accepted = isLoopbackRequest(r)
 			})).ServeHTTP(httptest.NewRecorder(), req)
-			want := token == "test-desktop-token" && (origin == "wails://wails" || origin == "http://wails.localhost" || origin == "https://wails.localhost")
+			want := token == "test-desktop-token" && isWailsOrigin(origin)
 			if accepted != want {
 				t.Fatalf("origin=%s token-present=%v accepted=%v want=%v", origin, token != "", accepted, want)
 			}
 		}
+	}
+}
+
+// 桌面壳（启动令牌已验）从另一个本机端口加载前端时，loopback 端口不同也应放行。
+func TestDesktopShellAcceptsLoopbackOriginOnAnotherPort(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8080/api/assistant/ui-session", nil)
+	req.Host = "127.0.0.1:8080"
+	req.RemoteAddr = "127.0.0.1:54321"
+	req.Header.Set("Origin", "http://127.0.0.1:3010")
+	req.Header.Set(httptransport.LaunchTokenHeader, "test-desktop-token")
+	accepted := false
+	httptransport.RequireLaunchToken("test-desktop-token")(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		accepted = isLoopbackRequest(r)
+	})).ServeHTTP(httptest.NewRecorder(), req)
+	if !accepted {
+		t.Fatal("桌面壳从另一本机端口发起的请求应被接受")
+	}
+
+	// 没有启动令牌时仍然拒绝：任意 loopback 端口不能凭空算同源。
+	plain := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8080/api/assistant/ui-session", nil)
+	plain.Host = "127.0.0.1:8080"
+	plain.RemoteAddr = "127.0.0.1:54321"
+	plain.Header.Set("Origin", "http://127.0.0.1:3010")
+	if isLoopbackRequest(plain) {
+		t.Fatal("无令牌的跨端口 loopback 请求不应被接受")
+	}
+	// 非 loopback 的 Origin 即使带令牌也不能放行。
+	remote := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8080/api/assistant/ui-session", nil)
+	remote.Host = "127.0.0.1:8080"
+	remote.RemoteAddr = "127.0.0.1:54321"
+	remote.Header.Set("Origin", "https://evil.example")
+	remote.Header.Set(httptransport.LaunchTokenHeader, "test-desktop-token")
+	rejected := true
+	httptransport.RequireLaunchToken("test-desktop-token")(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		rejected = !isLoopbackRequest(r)
+	})).ServeHTTP(httptest.NewRecorder(), remote)
+	if !rejected {
+		t.Fatal("非本机 Origin 不应放行")
 	}
 }

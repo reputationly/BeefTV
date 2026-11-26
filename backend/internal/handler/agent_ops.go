@@ -432,7 +432,10 @@ func isLoopbackRequest(r *http.Request) bool {
 		return false
 	}
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
-	if httptransport.DesktopAuthenticated(r) && (origin == "wails://wails" || origin == "http://wails.localhost" || origin == "https://wails.localhost") {
+	// 桌面壳的 Origin **带端口**：dev 下窗口是 `wails://wails.localhost:34115`，
+	// release 是 `wails://wails` / `http://wails.localhost`。按 scheme + 主机名判定，
+	// 不能只比字面量，否则 dev 窗口永远被当成跨站。
+	if httptransport.DesktopAuthenticated(r) && isWailsOrigin(origin) {
 		return true
 	}
 	if origin == "" {
@@ -446,10 +449,34 @@ func isLoopbackRequest(r *http.Request) bool {
 	if strings.EqualFold(parsed.Host, r.Host) {
 		return true
 	}
+	// 桌面壳的例外：dev 下前端由另一个本机端口提供（Vite 3010），窗口却按 Wails
+	// 绑定给的绝对地址直连后端（8080），两边都是 loopback 但端口不同。
+	// 这个分支只在启动令牌已验过时生效——普通网页请求拿不到启动令牌。
+	if httptransport.DesktopAuthenticated(r) && isLoopbackHost(parsed.Host) {
+		return true
+	}
 	for _, allowed := range allowedOrigins() {
 		if strings.EqualFold(strings.TrimRight(allowed, "/"), strings.TrimRight(origin, "/")) {
 			return true
 		}
+	}
+	return false
+}
+
+// isWailsOrigin 判断 Origin 是否来自 Wails 宿主页面（允许任意端口）。
+func isWailsOrigin(origin string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(origin))
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	switch parsed.Scheme {
+	case "wails", "http", "https":
+	default:
+		return false
+	}
+	switch strings.ToLower(parsed.Hostname()) {
+	case "wails", "wails.localhost":
+		return true
 	}
 	return false
 }

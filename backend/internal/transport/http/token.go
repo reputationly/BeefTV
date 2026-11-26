@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"strings"
 )
 
 const LaunchTokenHeader = "X-Desktop-Token"
@@ -31,7 +32,10 @@ func RequireLaunchToken(token string) func(http.Handler) http.Handler {
 	want := []byte(token)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodOptions || r.URL.Path == "/api/health/live" {
+			// 插件客户端目录是 ESM 模块，浏览器的 import() **不能带自定义头**，
+			// 要求启动令牌会让所有带 client 的插件加载失败（"Importing a module
+			// script failed"）。这些是随包的开源插件代码，不含密钥。
+			if r.Method == http.MethodOptions || r.URL.Path == "/api/health/live" || isPluginClientAsset(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -50,4 +54,16 @@ func RequireLaunchToken(token string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), desktopAuthenticatedKey{}, true)))
 		})
 	}
+}
+
+// isPluginClientAsset 判断是不是插件的客户端静态文件（/api/plugins/<id>/files/...）。
+func isPluginClientAsset(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	path := r.URL.Path
+	if !strings.HasPrefix(path, "/api/plugins/") || !strings.Contains(path, "/files/") {
+		return false
+	}
+	return true
 }

@@ -3,6 +3,7 @@ import { getRegisteredPlugin, listRegisteredPlugins } from "@/lib/plugins/plugin
 import type { BeefTVPluginHost, PluginManifest, PluginManifestV2 } from "@/lib/plugins/plugin-types";
 import { disposePluginContributions } from "@/lib/plugins/slot-registry";
 import { reportPluginLoadError } from "@/services/api/plugins";
+import { apiClient } from "@/services/api/request";
 import {
     isPluginEffectivelyEnabled,
     onPluginStoreLifecycleChange,
@@ -30,7 +31,12 @@ function clientEntryFor(pluginId: string, manifest?: PluginManifest | PluginMani
     const cleanClient = manifest?.client ? manifest.client.replace(/^\.\//, "").replace(/^\/+/, "") : "";
     if (!cleanClient) return undefined;
     const revision = manifest?.revision || manifest?.version || "";
-    return `/api/plugins/${encodeURIComponent(pluginId)}/files/${cleanClient}?v=${encodeURIComponent(revision)}`;
+    const relative = `/api/plugins/${encodeURIComponent(pluginId)}/files/${cleanClient}?v=${encodeURIComponent(revision)}`;
+    // 桌面壳里页面来自 wails:// 来源，相对路径会被 Wails 资源服务器接管
+    // （它只代理一部分请求），模块加载直接失败。优先拼成后端绝对地址：
+    // 插件的客户端文件免启动令牌，跨源 import 可用。
+    const baseURL = String(apiClient.defaults.baseURL || "").replace(/\/+$/, "");
+    return baseURL.startsWith("http") ? `${baseURL}${relative}` : relative;
 }
 
 function resolveModuleActivator(

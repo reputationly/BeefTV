@@ -20,6 +20,7 @@ import (
 // lives in the composition root; the handler only names the calls it makes.
 type channelModelCatalogs interface {
 	workspaceOwners
+	DataDir() string
 	RequireFeature(feature string) error
 	FetchChannelModelCatalog(ctx context.Context, actor *model.User, input app.ChannelModelsRequest) ([]modelcatalog.ChannelModelCatalogItem, error)
 }
@@ -50,6 +51,40 @@ func RegisterChannelModelRoutes(r *gin.RouterGroup, catalogs channelModelCatalog
 			return
 		}
 		ok(c, gin.H{"models": models})
+	})
+	// 第一方模型目录（new-api 按 Hilo 目录配置下发，带 platform_model）。
+	// POST 真实拉取并落盘，GET 只读上一次成功的快照（平台不可达时沿用）。
+	r.POST("/ai/catalog", func(c *gin.Context) {
+		if _, err := currentUser(c, catalogs); err != nil {
+			failService(c, err)
+			return
+		}
+		var input struct {
+			BaseURL string `json:"baseUrl"`
+		}
+		if err := c.ShouldBindJSON(&input); err != nil {
+			fail(c, http.StatusBadRequest, errors.New("模型渠道参数格式错误"))
+			return
+		}
+		catalog, err := generation.FetchGatewayModelCatalog(c.Request.Context(), input.BaseURL)
+		if err != nil {
+			failService(c, err)
+			return
+		}
+		_ = generation.WriteGatewayModelCatalogCache(catalogs.DataDir(), catalog)
+		ok(c, gin.H{"version": catalog.Version, "catalog": catalog.Payload, "source": "live"})
+	})
+	r.GET("/ai/catalog", func(c *gin.Context) {
+		if _, err := currentUser(c, catalogs); err != nil {
+			failService(c, err)
+			return
+		}
+		cached, found := generation.ReadGatewayModelCatalogCache(catalogs.DataDir())
+		if !found {
+			fail(c, http.StatusNotFound, errors.New("没有可用的模型目录缓存"))
+			return
+		}
+		ok(c, gin.H{"version": cached.Version, "catalog": cached.Payload, "source": "cache"})
 	})
 	// 设置页展示的请求地址由后端给出，和读取模型目录、文本任务实际请求的是同一个地址。
 	r.POST("/ai/request-urls", func(c *gin.Context) {

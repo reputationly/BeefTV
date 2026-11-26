@@ -85,15 +85,18 @@ export default defineConfig({
         // The in-app plugin guide renders the docs site page, the single source.
         fs: { allow: [searchForWorkspaceRoot(webDir), resolve(webDir, "../docs/content/docs/plugins"), resolve(webDir, "../plugin-packages")] },
         proxy: {
+            // changeOrigin 必须为 false：后端按"Origin 的 host 与 Host 头完全一致"
+            // 判定同源（见 backend/internal/handler/agent_ops.go 的 isLoopbackRequest），
+            // 改写 Host 会让 /api/assistant/ui-session 这类本机同源接口一律 403。
             "/api/ops": {
                 target: apiProxyTarget,
-                changeOrigin: true,
+                changeOrigin: false,
                 xfwd: true,
                 ...(Object.keys(opsProxyHeaders).length > 0 ? { headers: opsProxyHeaders } : {}),
             },
             "/api": {
                 target: apiProxyTarget,
-                changeOrigin: true,
+                changeOrigin: false,
                 xfwd: true,
                 ...(Object.keys(apiProxyHeaders).length > 0 ? { headers: apiProxyHeaders } : {}),
             },

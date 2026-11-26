@@ -56,6 +56,10 @@ export type ModelChannel = {
         icon?: string;
         capability: ModelCapability;
         protocol?: ModelProtocol;
+        /** 该模型声明的输入模态（image/video/audio），来自网关能力目录。 */
+        modalities?: string[];
+        /** 云端参数表（宽高比/分辨率/时长/生成方式），供节点渲染选项与默认值。 */
+        params?: Record<string, { type?: string; label?: string; default?: string; options?: string[] }>;
         referenceMediaTransport?: ReferenceMediaTransport;
         authType?: string;
         capabilityConfig?: ModelCapabilityConfig;
