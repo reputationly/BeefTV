@@ -35,8 +35,33 @@ function clientEntryFor(pluginId: string, manifest?: PluginManifest | PluginMani
     // 桌面壳里页面来自 wails:// 来源，相对路径会被 Wails 资源服务器接管
     // （它只代理一部分请求），模块加载直接失败。优先拼成后端绝对地址：
     // 插件的客户端文件免启动令牌，跨源 import 可用。
+    // 桌面壳里页面来自 wails:// 来源：
+    //  - 相对路径由 Wails 资源服务器代理到后端（同源，最稳）；
+    //  - 绝对地址在部分环境会被 CORS 拦住，只作为回退。
+    // 加载器会先试相对、失败再试绝对，两种宿主都能用。
     const baseURL = String(apiClient.defaults.baseURL || "").replace(/\/+$/, "");
     return baseURL.startsWith("http") ? `${baseURL}${relative}` : relative;
+}
+
+/**
+ * 先按同源相对路径加载（Wails 资源服务器会代理到后端），失败再退回绝对地址。
+ * 桌面壳（wails:// 来源）下绝对地址可能被 CORS 拒绝，而浏览器里相对路径最稳；
+ * 两条都试一遍，宿主形态不同也能加载。
+ */
+async function importPluginClientModule(entry: string): Promise<ClientPluginModule> {
+    try {
+        return (await import(/* @vite-ignore */ entry)) as ClientPluginModule;
+    } catch (error) {
+        const absolute = absolutePluginEntry(entry);
+        if (!absolute) throw error;
+        return (await import(/* @vite-ignore */ absolute)) as ClientPluginModule;
+    }
+}
+
+function absolutePluginEntry(entry: string): string {
+    if (/^https?:/u.test(entry)) return "";
+    const baseURL = String(apiClient.defaults.baseURL || "").replace(/\/+$/, "");
+    return baseURL.startsWith("http") ? `${baseURL}${entry}` : "";
 }
 
 function resolveModuleActivator(
@@ -174,7 +199,7 @@ export async function loadAndActivateClientPlugin(
         try {
             const timeoutMs = options?.timeoutMs ?? CLIENT_ENTRY_TIMEOUT_MS;
             const mod = await withTimeout(
-                import(/* @vite-ignore */ clientEntry) as Promise<ClientPluginModule>,
+                importPluginClientModule(clientEntry),
                 timeoutMs,
                 pluginId,
             );
