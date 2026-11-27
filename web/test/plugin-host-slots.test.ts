@@ -569,7 +569,8 @@ describe("plugin host slots, events, and lifecycle", () => {
         expect(
             getPluginSlotEntries("app.settings").some((e) => e.pluginId === "beeftv-plugin-maas"),
         ).toBe(true);
-        const maasMapping = maasMod.maasProfilesFromCatalog({
+        const maasPresets = await import("../../plugin-packages/beeftv-plugin-maas/client/presets.js");
+        const maasMapping = maasPresets.maasProfilesFromCatalog({
             text: [{ platformModel: "GLM-5" }],
             image: [{ platformModel: "minimax-h3-image" }],
             video: [{ platformModel: "minimax-h3-2k" }],
@@ -577,7 +578,7 @@ describe("plugin host slots, events, and lifecycle", () => {
             defaults: { chat: "GLM-5" },
         });
         const maasProfiles = maasMapping.profiles;
-        const builtMaasChannel = maasMod.buildMaasModelChannel({ apiKey: "sk-test-demo", baseUrl: "https://maas.ovaijisuan.com/v1", profiles: maasProfiles });
+        const builtMaasChannel = maasPresets.buildMaasModelChannel({ apiKey: "sk-test-demo", baseUrl: "https://maas.ovaijisuan.com/v1", profiles: maasProfiles });
         expect(builtMaasChannel.id).toBe("maas");
         expect(builtMaasChannel.baseUrl).toBe("https://maas.ovaijisuan.com/v1");
         expect(builtMaasChannel.models).toEqual(["GLM-5", "minimax-h3-image", "minimax-h3-2k"]);

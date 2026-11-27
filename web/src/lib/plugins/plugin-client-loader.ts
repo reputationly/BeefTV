@@ -39,8 +39,7 @@ function clientEntryFor(pluginId: string, manifest?: PluginManifest | PluginMani
     //  - 相对路径由 Wails 资源服务器代理到后端（同源，最稳）；
     //  - 绝对地址在部分环境会被 CORS 拦住，只作为回退。
     // 加载器会先试相对、失败再试绝对，两种宿主都能用。
-    const baseURL = String(apiClient.defaults.baseURL || "").replace(/\/+$/, "");
-    return baseURL.startsWith("http") ? `${baseURL}${relative}` : relative;
+    return relative;
 }
 
 /**
@@ -54,7 +53,13 @@ async function importPluginClientModule(entry: string): Promise<ClientPluginModu
     } catch (error) {
         const absolute = absolutePluginEntry(entry);
         if (!absolute) throw error;
-        return (await import(/* @vite-ignore */ absolute)) as ClientPluginModule;
+        try {
+            return (await import(/* @vite-ignore */ absolute)) as ClientPluginModule;
+        } catch (fallbackError) {
+            const first = error instanceof Error ? error.message : String(error);
+            const second = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+            throw new Error(`relative: ${first} | absolute: ${second}`);
+        }
     }
 }
 
